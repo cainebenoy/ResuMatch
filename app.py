@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 import sqlite3
 from datetime import datetime
 from werkzeug.utils import secure_filename
@@ -6,50 +6,19 @@ from flask_cors import CORS
 from sklearn.feature_extraction.text import TfidfVectorizer
 import os
 import io
+import re
+
+app = Flask(__name__)
+CORS(app)
 try:
     import PyPDF2
 except ImportError:
     PyPDF2 = None
 try:
+
     import docx
 except ImportError:
     docx = None
-import re
-
-app = Flask(__name__)
-CORS(app)
-DB_PATH = 'analysis_history.db'
-
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS history (
-            id INTEGER PRIMARY KEY,
-            timestamp TEXT,
-            role_template TEXT,
-            job_description TEXT,
-            match_score REAL
-        )
-    ''')
-    conn.commit()
-    conn.close()
-init_db()
-
-# Suggestion templates for missing keywords
-SUGGESTIONS_MAP = {
-    'testing': "Consider adding a bullet point about your experience with software testing.",
-    'python': "Emphasize your Python expertise with specific projects or libraries.",
-    'flask': "Mention any Flask applications you've built or contributed to.",
-    'aws': "Highlight your AWS services experience (e.g., S3, EC2, Lambda).",
-    'docker': "Include your experience containerizing applications with Docker.",
-    # add more as needed
-}
-
-ROLE_TEMPLATES = {
-    'Python Developer': 'Looking for a Python Developer with experience in Flask, Django, REST APIs, and AWS.',
-    'Data Analyst': 'Seeking a Data Analyst skilled in SQL, Pandas, data visualization (Tableau or matplotlib), and statistics.',
-}
 
 # Weighted keywords (higher weight => more impact)
 HIGH_VALUE_WEIGHTS = {
@@ -65,6 +34,8 @@ HIGH_VALUE_WEIGHTS = {
     'rest api': 1.6,
     'pandas': 1.7,
 }
+
+DB_PATH = 'analysis_history.db'
 
 def extract_sentence_for_keyword(text: str, keyword: str) -> str:
     """Return a sentence from text that contains the keyword (case-insensitive)."""
@@ -112,9 +83,7 @@ def analyze_resume():
             job_description_text = data.get('job_description_text', '').strip()
             role_template = data.get('role_template')
 
-        # Apply role template override
-        if role_template in ROLE_TEMPLATES:
-            job_description_text = ROLE_TEMPLATES[role_template]
+    # Role template override removed for simplicity in new logic
         if not resume_text or not job_description_text:
             return jsonify({'error': 'Resume and job description text cannot be empty'}), 400
 
@@ -144,21 +113,7 @@ def analyze_resume():
                 (matched if kw in resume_words else missing).append(kw)
 
         # Cosine similarity score
-        from sklearn.metrics.pairwise import cosine_similarity
-        cos_sim = cosine_similarity(tfidf[0], tfidf[1])[0][0]
-        match_score = round(cos_sim * 100, 1)
-
-        # Weighted score across the same top keywords
-        def weight_for(kw: str) -> float:
-            return HIGH_VALUE_WEIGHTS.get(kw, HIGH_VALUE_WEIGHTS.get(kw.lower(), 1.0))
-
-        total_weight = sum(weight_for(k) for k in top_kws) or 1.0
-        matched_weight = sum(weight_for(k) for k in matched)
-        weighted_match_score = round((matched_weight / total_weight) * 100, 1)
-
-        # Suggestions and keyword contexts (from original JD text)
-        suggestions = [SUGGESTIONS_MAP.get(k, f"Consider adding details about '{k}' when relevant.") for k in missing]
-        keyword_contexts = {k: extract_sentence_for_keyword(job_description_text, k) for k in top_kws}
+    # (Removed cosine_similarity and SUGGESTIONS_MAP logic for new analysis)
 
         # Save history
         conn = sqlite3.connect(DB_PATH)
@@ -172,12 +127,9 @@ def analyze_resume():
 
         return jsonify({
             'match_score': match_score,
-            'weighted_match_score': weighted_match_score,
             'matched_keywords': matched,
             'missing_keywords': missing,
-            'keyword_contexts': keyword_contexts,
-            'total_keywords_analyzed': len(top_kws),
-            'suggestions': suggestions
+            'total_keywords_analyzed': len(jd_keywords)
         })
     except Exception as e:
         return jsonify({'error': f'An error occurred: {str(e)}'}), 500
@@ -204,6 +156,14 @@ def get_history():
 @app.route('/health', methods=['GET'])
 def health_check():
     return jsonify({'status': 'healthy', 'message': 'ResuMatch API is running'})
+
+@app.route('/')
+def serve_frontend():
+    return send_from_directory('.', 'index.html')
+
+@app.route('/<path:filename>')
+def serve_static(filename):
+    return send_from_directory('.', filename)
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

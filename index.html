@@ -260,7 +260,26 @@
         </div>
         
         <div class="form-container">
-            <form id="analyzeForm">
+            <form id="analyzeForm" autocomplete="off">
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Log unexpected page reloads
+        window.addEventListener('beforeunload', function(e) {
+            console.log('Page is unloading or reloading!');
+        });
+        // Log form resets
+        document.getElementById('analyzeForm').addEventListener('reset', function(e) {
+            console.log('Form reset event triggered!');
+        });
+        // Disable any reset button if present
+        const resetBtn = document.querySelector('button[type="reset"]');
+        if (resetBtn) {
+            resetBtn.disabled = true;
+            resetBtn.style.display = 'none';
+        }
+        // ...existing code for attaching all event listeners (submit, demoBtn, historyBtn, etc.) should be inside this DOMContentLoaded block...
+    });
+    </script>
                 <div class="input-group">
                     <label for="resumeText">Resume Content</label>
                     <textarea 
@@ -384,6 +403,7 @@ document.getElementById('demoBtn').addEventListener('click', function() {
 historyBtn.addEventListener('click', async () => {
     // Hide results, show history
     resultsContainer.style.display = 'none';
+    console.log('resultsContainer hidden: historyBtn click');
     suggestionsSection.style.display = 'none';
     historyContainer.style.display = 'block';
     // Fetch history
@@ -419,6 +439,7 @@ form.addEventListener('submit', async function(e) {
     submitBtn.disabled = true;
     loading.style.display = 'block';
     resultsContainer.style.display = 'none';
+    console.log('resultsContainer hidden: form submit start');
     suggestionsSection.style.display = 'none';
 
     try {
@@ -439,14 +460,19 @@ form.addEventListener('submit', async function(e) {
             });
         }
         const data = await response.json();
+        console.log('Backend response:', data); // Debug logging
         if (!response.ok) throw new Error(data.error || 'Analysis failed');
 
         // display results
+        console.log('Setting scoreNumber.textContent to', data.match_score);
         scoreNumber.textContent = data.match_score;
+        console.log('Setting totalKeywords.textContent to', data.total_keywords_analyzed);
         totalKeywords.textContent = data.total_keywords_analyzed;
+        console.log('Setting matchedKeywordsElem.textContent to', data.matched_keywords.length);
         matchedKeywordsElem.textContent = data.matched_keywords.length;
         // weighted score
         const weightedEl = document.getElementById('weightedScore');
+        console.log('Setting weightedScore.textContent to', data.weighted_match_score);
         if (weightedEl && typeof data.weighted_match_score === 'number') {
             weightedEl.textContent = data.weighted_match_score;
         }
@@ -455,6 +481,7 @@ form.addEventListener('submit', async function(e) {
         keywordsListMatched.innerHTML = '';
         keywordsListMissing.innerHTML = '';
         const contexts = data.keyword_contexts || {};
+        console.log('Matched keywords:', data.matched_keywords);
         data.matched_keywords.forEach(k => { 
             const li = document.createElement('li'); 
             li.textContent = k; 
@@ -462,6 +489,7 @@ form.addEventListener('submit', async function(e) {
             if (ctx) li.title = ctx;
             keywordsListMatched.appendChild(li);
         });
+        console.log('Missing keywords:', data.missing_keywords);
         data.missing_keywords.forEach(k => { 
             const li = document.createElement('li'); 
             li.textContent = k; 
@@ -475,11 +503,28 @@ form.addEventListener('submit', async function(e) {
         // suggestions
         suggestionsList.innerHTML = '';
         data.suggestions.forEach(s => { const li = document.createElement('li'); li.textContent = s; suggestionsList.appendChild(li);} );
+        
+        // highlight matched keywords in resume display
+        const resumeDisplay = document.getElementById('resumeDisplay');
+        let resumeTextToShow = resumeText || 'No resume text provided';
+        if (data.matched_keywords && data.matched_keywords.length > 0) {
+            // Sort by length desc to avoid partial overlaps
+            const sorted = [...data.matched_keywords].sort((a,b) => b.length - a.length);
+            sorted.forEach(keyword => {
+                // Regex: whole word or phrase, case-insensitive
+                const re = new RegExp(`(\\b${keyword.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}\\b)`, 'gi');
+                resumeTextToShow = resumeTextToShow.replace(re, '<mark style="background:#ffe066;">$1</mark>');
+            });
+        }
+        resumeDisplay.innerHTML = resumeTextToShow;
+        
         suggestionsSection.style.display = 'block';
-        resultsContainer.style.display = 'block';
+    resultsContainer.style.display = 'block';
+    console.log('resultsContainer shown: after analysis');
 
     } catch (err) {
-        alert(err.message);
+        console.error('Error in form submission:', err); // Debug logging
+        alert('Error: ' + err.message);
     } finally {
         submitBtn.disabled = false;
         loading.style.display = 'none';
