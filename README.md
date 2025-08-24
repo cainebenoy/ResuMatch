@@ -1,3 +1,5 @@
+# ![Banner](Banner.png)
+
 # ResuMatch
 
 ResuMatch — a project to match resumes to job descriptions.
