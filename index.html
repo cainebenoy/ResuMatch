@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResuMatch - Resume Keyword Analyzer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .form-container {
+            padding: 40px;
+        }
+
+        .input-group {
+            margin-bottom: 30px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1rem;
+        }
+
+        .input-group textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 20px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-family: inherit;
+            resize: vertical;
+            transition: border-color 0.3s ease;
+        }
+
+        .input-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .submit-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .submit-btn:active {
+            transform: translateY(0);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+            font-size: 1.1rem;
+        }
+
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results-container {
+            padding: 40px;
+            background: #f8f9fa;
+            border-top: 1px solid #e1e5e9;
+            display: none;
+        }
+
+        .results-container.show {
+            display: block;
+        }
+
+        .score-display {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .score-number {
+            font-size: 4rem;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .score-label {
+            font-size: 1.2rem;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .keywords-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+
+        .keywords-list {
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+        }
+
+        .keywords-list li {
+            background: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #c33;
+            margin-bottom: 20px;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .stat-item {
+            text-align: center;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #764ba2;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                border-radius: 15px;
+            }
+            
+            .header {
+                padding: 30px 20px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .form-container {
+                padding: 20px;
+            }
+            
+            .results-container {
+                padding: 20px;
+            }
+            
+            .score-number {
+                font-size: 3rem;
+            }
+            
+            .stats {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ResuMatch</h1>
+            <p>Resume Keyword Analyzer</p>
+        </div>
+        
+        <div class="form-container">
+            <form id="analyzeForm">
+                <div class="input-group">
+                    <label for="resumeText">Resume Content</label>
+                    <textarea 
+                        id="resumeText" 
+                        name="resumeText" 
+                        placeholder="Paste your resume content here..."
+                        required
+                    ></textarea>
+                </div>
+                
+                <div class="input-group">
+                    <label for="jobDescriptionText">Job Description</label>
+                    <textarea 
+                        id="jobDescriptionText" 
+                        name="jobDescriptionText" 
+                        placeholder="Paste the job description here..."
+                        required
+                    ></textarea>
+                </div>
+                
+                <button type="submit" class="submit-btn" id="submitBtn">
+                    Analyze Match
+                </button>
+            </form>
+        </div>
+        
+        <div class="loading" id="loading" style="display: none;">
+            Analyzing your resume...
+        </div>
+        
+        <div class="results-container" id="resultsContainer">
+            <div class="score-display">
+                <div class="score-number" id="scoreNumber">0</div>
+                <div class="score-label">Match Score</div>
+            </div>
+            
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-number" id="totalKeywords">0</div>
+                    <div class="stat-label">Keywords Analyzed</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="matchedKeywords">0</div>
+                    <div class="stat-label">Keywords Matched</div>
+                </div>
+            </div>
+            
+            <div class="keywords-section">
+                <h3>Matched Keywords</h3>
+                <ul class="keywords-list" id="keywordsList">
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('analyzeForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const loading = document.getElementById('loading');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const scoreNumber = document.getElementById('scoreNumber');
+        const totalKeywords = document.getElementById('totalKeywords');
+        const matchedKeywords = document.getElementById('matchedKeywords');
+        const keywordsList = document.getElementById('keywordsList');
+
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const resumeText = document.getElementById('resumeText').value.trim();
+            const jobDescriptionText = document.getElementById('jobDescriptionText').value.trim();
+            
+            if (!resumeText || !jobDescriptionText) {
+                alert('Please fill in both resume and job description fields.');
+                return;
+            }
+            
+            // Show loading state
+            submitBtn.disabled = true;
+            loading.style.display = 'block';
+            resultsContainer.classList.remove('show');
+            
+            try {
+                const response = await fetch('http://localhost:5000/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        resume_text: resumeText,
+                        job_description_text: jobDescriptionText
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Display results
+                    scoreNumber.textContent = data.match_score;
+                    totalKeywords.textContent = data.total_keywords_analyzed;
+                    matchedKeywords.textContent = data.matched_keywords.length;
+                    
+                    // Clear previous keywords
+                    keywordsList.innerHTML = '';
+                    
+                    // Add matched keywords
+                    if (data.matched_keywords.length > 0) {
+                        data.matched_keywords.forEach(keyword => {
+                            const li = document.createElement('li');
+                            li.textContent = keyword;
+                            keywordsList.appendChild(li);
+                        });
+                    } else {
+                        const li = document.createElement('li');
+                        li.textContent = 'No keywords matched';
+                        li.style.color = '#999';
+                        keywordsList.appendChild(li);
+                    }
+                    
+                    // Show results
+                    resultsContainer.classList.add('show');
+                } else {
+                    throw new Error(data.error || 'Failed to analyze resume');
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while analyzing your resume. Please try again.');
+            } finally {
+                // Hide loading state
+                submitBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
