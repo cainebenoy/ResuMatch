@@ -269,6 +269,18 @@
                         placeholder="Paste your resume content here..."
                         required
                     ></textarea>
+                    <div style="margin-top:10px;">
+                        <input type="file" id="resumeFile" accept=".pdf,.doc,.docx,.txt">
+                        <span style="font-size:0.9em;color:#666;">(PDF, DOCX, or TXT)</span>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="roleTemplate">Role Template</label>
+                    <select id="roleTemplate">
+                        <option value="">-- None --</option>
+                        <option value="Python Developer">Python Developer</option>
+                        <option value="Data Analyst">Data Analyst</option>
+                    </select>
                 </div>
                 
                 <div class="input-group">
@@ -284,6 +296,8 @@
                 <button type="submit" class="submit-btn" id="submitBtn">
                     Analyze Match
                 </button>
+                <button type="button" class="submit-btn" id="demoBtn" style="background:#eee;color:#764ba2;margin-top:10px;">Demo / Autofill</button>
+                <button type="button" class="submit-btn" id="historyBtn" style="background:#fff;color:#333;margin-top:10px;">View History</button>
             </form>
         </div>
         
@@ -291,10 +305,15 @@
             Analyzing your resume...
         </div>
         
-        <div class="results-container" id="resultsContainer">
+    <div class="results-container" id="resultsContainer">
+            <div style="margin-bottom:30px;">
+                <h3>Your Resume (with matched keywords highlighted):</h3>
+                <div id="resumeDisplay" style="background:#fff;border-radius:8px;padding:20px;min-height:100px;box-shadow:0 2px 8px rgba(0,0,0,0.05);font-family:monospace;white-space:pre-wrap;"></div>
+            </div>
             <div class="score-display">
                 <div class="score-number" id="scoreNumber">0</div>
-                <div class="score-label">Match Score</div>
+                    <div class="score-label">Cosine Match Score</div>
+                    <div class="score-label">Weighted Score: <strong id="weightedScore">0</strong></div>
             </div>
             
             <div class="stats">
@@ -310,90 +329,162 @@
             
             <div class="keywords-section">
                 <h3>Matched Keywords</h3>
-                <ul class="keywords-list" id="keywordsList">
+                <ul class="keywords-list" id="keywordsListMatched">
                 </ul>
             </div>
+            <div class="keywords-section">
+                <h3>Missing Keywords</h3>
+                <ul class="keywords-list" id="keywordsListMissing">
+                </ul>
+            </div>
+            <div class="suggestions-section" id="suggestionsSection" style="display:none;padding:40px;background:#f0f4f8;">
+                <h3>Improvement Suggestions</h3>
+                <ul id="suggestionsList"></ul>
+            </div>
+        </div>
+        <div class="history-container" id="historyContainer" style="display:none;padding:40px;background:#eef1f5;">
+            <h3>Analysis History</h3>
+            <table id="historyTable" style="width:100%;border-collapse:collapse;">
+                <thead><tr><th>ID</th><th>Timestamp</th><th>Role</th><th>Score</th></tr></thead>
+                <tbody></tbody>
+            </table>
         </div>
     </div>
 
     <script>
-        const form = document.getElementById('analyzeForm');
-        const submitBtn = document.getElementById('submitBtn');
-        const loading = document.getElementById('loading');
-        const resultsContainer = document.getElementById('resultsContainer');
-        const scoreNumber = document.getElementById('scoreNumber');
-        const totalKeywords = document.getElementById('totalKeywords');
-        const matchedKeywords = document.getElementById('matchedKeywords');
-        const keywordsList = document.getElementById('keywordsList');
+const form = document.getElementById('analyzeForm');
+const submitBtn = document.getElementById('submitBtn');
+const loading = document.getElementById('loading');
+const roleTemplateSelect = document.getElementById('roleTemplate');
+const resultsContainer = document.getElementById('resultsContainer');
+const scoreNumber = document.getElementById('scoreNumber');
+const totalKeywords = document.getElementById('totalKeywords');
+const matchedKeywordsElem = document.getElementById('matchedKeywords');
+const keywordsListMatched = document.getElementById('keywordsListMatched');
+const keywordsListMissing = document.getElementById('keywordsListMissing');
+const suggestionsSection = document.getElementById('suggestionsSection');
+const suggestionsList = document.getElementById('suggestionsList');
+const historyBtn = document.getElementById('historyBtn');
+const historyContainer = document.getElementById('historyContainer');
+const historyTableBody = document.querySelector('#historyTable tbody');
 
-        form.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const resumeText = document.getElementById('resumeText').value.trim();
-            const jobDescriptionText = document.getElementById('jobDescriptionText').value.trim();
-            
-            if (!resumeText || !jobDescriptionText) {
-                alert('Please fill in both resume and job description fields.');
-                return;
-            }
-            
-            // Show loading state
-            submitBtn.disabled = true;
-            loading.style.display = 'block';
-            resultsContainer.classList.remove('show');
-            
-            try {
-                const response = await fetch('http://localhost:5000/analyze', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        resume_text: resumeText,
-                        job_description_text: jobDescriptionText
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (response.ok) {
-                    // Display results
-                    scoreNumber.textContent = data.match_score;
-                    totalKeywords.textContent = data.total_keywords_analyzed;
-                    matchedKeywords.textContent = data.matched_keywords.length;
-                    
-                    // Clear previous keywords
-                    keywordsList.innerHTML = '';
-                    
-                    // Add matched keywords
-                    if (data.matched_keywords.length > 0) {
-                        data.matched_keywords.forEach(keyword => {
-                            const li = document.createElement('li');
-                            li.textContent = keyword;
-                            keywordsList.appendChild(li);
-                        });
-                    } else {
-                        const li = document.createElement('li');
-                        li.textContent = 'No keywords matched';
-                        li.style.color = '#999';
-                        keywordsList.appendChild(li);
-                    }
-                    
-                    // Show results
-                    resultsContainer.classList.add('show');
-                } else {
-                    throw new Error(data.error || 'Failed to analyze resume');
-                }
-                
-            } catch (error) {
-                console.error('Error:', error);
-                alert('An error occurred while analyzing your resume. Please try again.');
-            } finally {
-                // Hide loading state
-                submitBtn.disabled = false;
-                loading.style.display = 'none';
-            }
+// File upload: clear textarea for backend extraction
+document.getElementById('resumeFile').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) document.getElementById('resumeText').value = '';
+});
+
+// Demo/autofill button
+document.getElementById('demoBtn').addEventListener('click', function() {
+    document.getElementById('resumeText').value = `John Doe\nSenior Python Developer\n\nExperience:\n- Developed REST APIs using Flask and FastAPI\n- Built data pipelines with Python and Pandas\n- Deployed ML models on AWS\n- Led a team using Agile\n\nSkills:\nPython, Flask, FastAPI, Pandas, AWS, SQL, Docker, Team Leadership`;
+    document.getElementById('jobDescriptionText').value = `We are seeking a Python Developer with experience in:\n- Flask or Django\n- REST API development\n- Cloud platforms (AWS preferred)\n- Data analysis using Pandas\n- Team collaboration and Agile\n\nBonus:\n- Experience with Docker and SQL`;
+});
+
+// View history button
+historyBtn.addEventListener('click', async () => {
+    // Hide results, show history
+    resultsContainer.style.display = 'none';
+    suggestionsSection.style.display = 'none';
+    historyContainer.style.display = 'block';
+    // Fetch history
+    const resp = await fetch('http://localhost:5000/history');
+    const data = await resp.json();
+    // Populate table
+    historyTableBody.innerHTML = '';
+    data.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${item.id}</td><td>${item.timestamp}</td><td>${item.role_template || '-'}</td><td>${item.match_score}</td>`;
+        historyTableBody.appendChild(tr);
+    });
+});
+
+// Submit form
+form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    // hide history
+    historyContainer.style.display = 'none';
+    // gather inputs
+    const resumeText = document.getElementById('resumeText').value.trim();
+    const jobDescriptionText = document.getElementById('jobDescriptionText').value.trim();
+    const roleTemplate = roleTemplateSelect.value;
+    if (!resumeText && !document.getElementById('resumeFile').files.length) {
+        alert('Please provide resume text or upload a file.');
+        return;
+    }
+    if (!jobDescriptionText) {
+        alert('Please enter job description.');
+        return;
+    }
+    // loading state
+    submitBtn.disabled = true;
+    loading.style.display = 'block';
+    resultsContainer.style.display = 'none';
+    suggestionsSection.style.display = 'none';
+
+    try {
+        let response;
+        const fileInput = document.getElementById('resumeFile');
+        const file = fileInput.files[0];
+        if (file) {
+            const formData = new FormData();
+            formData.append('resume_file', file);
+            formData.append('job_description_text', jobDescriptionText);
+            formData.append('role_template', roleTemplate);
+            response = await fetch('http://localhost:5000/analyze', { method: 'POST', body: formData });
+        } else {
+            response = await fetch('http://localhost:5000/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ resume_text: resumeText, job_description_text: jobDescriptionText, role_template: roleTemplate })
+            });
+        }
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Analysis failed');
+
+        // display results
+        scoreNumber.textContent = data.match_score;
+        totalKeywords.textContent = data.total_keywords_analyzed;
+        matchedKeywordsElem.textContent = data.matched_keywords.length;
+        // weighted score
+        const weightedEl = document.getElementById('weightedScore');
+        if (weightedEl && typeof data.weighted_match_score === 'number') {
+            weightedEl.textContent = data.weighted_match_score;
+        }
+
+        // keywords lists
+        keywordsListMatched.innerHTML = '';
+        keywordsListMissing.innerHTML = '';
+        const contexts = data.keyword_contexts || {};
+        data.matched_keywords.forEach(k => { 
+            const li = document.createElement('li'); 
+            li.textContent = k; 
+            const ctx = contexts[k];
+            if (ctx) li.title = ctx;
+            keywordsListMatched.appendChild(li);
         });
+        data.missing_keywords.forEach(k => { 
+            const li = document.createElement('li'); 
+            li.textContent = k; 
+            const ctx = contexts[k];
+            if (ctx) li.title = ctx;
+            li.style.background = '#fee';
+            li.style.borderLeft = '4px solid #c33';
+            keywordsListMissing.appendChild(li);
+        });
+
+        // suggestions
+        suggestionsList.innerHTML = '';
+        data.suggestions.forEach(s => { const li = document.createElement('li'); li.textContent = s; suggestionsList.appendChild(li);} );
+        suggestionsSection.style.display = 'block';
+        resultsContainer.style.display = 'block';
+
+    } catch (err) {
+        alert(err.message);
+    } finally {
+        submitBtn.disabled = false;
+        loading.style.display = 'none';
+    }
+});
     </script>
 </body>
 </html>
